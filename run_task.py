@@ -20,7 +20,7 @@ ICI = Path(__file__).resolve().parent
 MODELE = "anthropic/claude-opus-5-5"
 EFFORT = "high"
 MULTIPLICATEUR = 0.25
-AGENTS = {"vanilla": ["-a", "claude-code"], "tokfit": ["-a", "tokfit_agent:TokfitClaudeCode"]}
+AGENTS = {"vanilla": ["-a", "claude-code"], "tokfit": ["-a", "tokfit_agent:TokfitClaudeCode"], "oracle": ["-a", "oracle"]}
 
 
 def secondes(debut: str | None, fin: str | None) -> float | None:
@@ -60,6 +60,16 @@ def trace(essai: Path) -> dict:
     return {"plugins": plugins, "tools_used": outils, "models": modeles, **fin}
 
 
+def verificateur(essai: Path) -> str:
+    """Fin de la sortie du correcteur : pourquoi la tâche est réussie ou non."""
+    textes = [f for f in essai.rglob("*") if f.is_file() and "verifier" in str(f.relative_to(essai)) and f.suffix in (".txt", ".log", ".json")]
+    morceaux = []
+    for f in sorted(textes)[:6]:
+        contenu = f.read_text(errors="replace")
+        morceaux.append(f"== {f.relative_to(essai)}\n{contenu[-1500:]}")
+    return "\n".join(morceaux)[-4000:]
+
+
 def resume(tache: str, config: str, dossier: Path) -> dict:
     trouves = sorted(dossier.glob(f"{tache}/*/result.json"))
     if not trouves:
@@ -82,6 +92,7 @@ def resume(tache: str, config: str, dossier: Path) -> dict:
         "total_seconds": secondes(r.get("started_at"), r.get("finished_at")),
         "error": (erreur or {}).get("exception_type"),
         "trace": trace(trouves[-1].parent),
+        "verifier_tail": verificateur(trouves[-1].parent),
     }
 
 
@@ -91,8 +102,8 @@ def main() -> int:
     sortie.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "PYTHONPATH": str(ICI)}
     env.pop("ANTHROPIC_API_KEY", None)
-    commande = ["harbor", "run", "-p", str(ICI / "tasks" / "terminal-bench" / tache), *AGENTS[config],
-                "-m", MODELE, "--ak", f"reasoning_effort={EFFORT}",
+    modele = [] if config == "oracle" else ["-m", MODELE, "--ak", f"reasoning_effort={EFFORT}"]
+    commande = ["harbor", "run", "-p", str(ICI / "tasks" / "terminal-bench" / tache), *AGENTS[config], *modele,
                 "--agent-timeout-multiplier", str(MULTIPLICATEUR), "-n", "1",
                 "-o", str(sortie / "jobs"), "--job-name", tache, "--yes",
                 "--ae", "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}"]

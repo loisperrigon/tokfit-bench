@@ -7,6 +7,9 @@ on:
       task:
         description: "Tâche de Terminal-Bench 4.0 (voir tasks.txt)"
         required: true
+      configs:
+        description: "Configurations (JSON)"
+        default: '["vanilla", "tokfit"]'
 
 permissions:
   contents: read
@@ -16,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config: [vanilla, tokfit]
+        config: ${{ fromJSON(inputs.configs) }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
