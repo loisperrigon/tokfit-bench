@@ -27,12 +27,17 @@ class TokfitClaudeCode(ClaudeCode):
     async def run(self, instruction, environment, context) -> None:  # type: ignore[no-untyped-def]
         # Le dossier doit exister avant la copie : sans lui, `docker compose cp` échoue, et la copie de
         # repli a déjà laissé une session sans clé (le plugin demande alors une clé d'essai anonyme).
-        await environment.exec(f"mkdir -p {REMOTE_PLUGIN}")
+        # Certaines tâches font tourner l'agent sous un autre compte (USER agent, nobody) : le dossier se
+        # prépare en root, et la clé copiée (0600, root) doit rester lisible par ce compte.
+        await environment.exec(f"mkdir -p {REMOTE_PLUGIN}", user="root")
         await environment.upload_dir(PLUGIN, REMOTE_PLUGIN)
         await environment.upload_file(CONFIG, REMOTE_CONFIG)
         for path in (REMOTE_CONFIG, f"{REMOTE_PLUGIN}/.claude-plugin/plugin.json"):
             if not await environment.is_file(path):
                 raise RuntimeError(f"tokfit absent du conteneur : {path} n'a pas été copié")
-        await environment.exec(f"chmod -R a+rX /opt/tokfit")
+        await environment.exec("chmod -R a+rX /opt/tokfit", user="root")
+        lisible = await environment.exec(f"test -r {REMOTE_CONFIG} && test -r {REMOTE_PLUGIN}/.claude-plugin/plugin.json")
+        if lisible.return_code != 0:
+            raise RuntimeError("clé ou plugin tokfit illisible par le compte de l'agent")
         self._resolved_env_vars["TOKFIT_CONFIG"] = REMOTE_CONFIG
         await super().run(instruction, environment, context)
