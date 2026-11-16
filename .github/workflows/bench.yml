@@ -34,7 +34,12 @@ jobs:
       - name: Tâche
         run: |
           grep -qx "${{ inputs.task }}" tasks.txt || { echo "tâche hors du tirage"; exit 1; }
-          harbor dataset download terminal-bench/terminal-bench -o tasks
+          # Le stockage des tâches répond parfois 504 : nouvelles tentatives espacées.
+          for essai in 1 2 3 4 5 6; do
+            harbor dataset download terminal-bench/terminal-bench -o tasks && test -d "tasks/terminal-bench/${{ inputs.task }}" && break
+            echo "téléchargement raté (essai $essai), nouvelle tentative"; sleep $((essai * 30))
+          done
+          test -d "tasks/terminal-bench/${{ inputs.task }}"
       - name: Plugin tokfit publié
         if: matrix.config == 'tokfit'
         env:
