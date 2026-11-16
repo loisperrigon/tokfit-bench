@@ -1,6 +1,6 @@
 """Une tâche de Terminal-Bench 4.0, une configuration : `vanilla` (Claude Code seul)
 ou `tokfit` (Claude Code + plugin tokfit publié). Même modèle et même réflexion
-des deux côtés (Opus 5.5, medium), agent plafonné à 2 h (8 h officielles x 0.25).
+des deux côtés (Opus 5.5, high), agent plafonné à 2 h (8 h officielles x 0.25).
 
     python run_task.py <tache> <vanilla|tokfit>
 
@@ -18,7 +18,7 @@ from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
 MODELE = "anthropic/claude-opus-5-5"
-EFFORT = "medium"
+EFFORT = "high"
 MULTIPLICATEUR = 0.25
 AGENTS = {"vanilla": ["-a", "claude-code"], "tokfit": ["-a", "tokfit_agent:TokfitClaudeCode"]}
 
