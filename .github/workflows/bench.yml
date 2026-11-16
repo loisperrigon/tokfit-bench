@@ -51,6 +51,14 @@ jobs:
           chmod 600 ~/.config/tokfit-bench/config.json
           echo "TOKFIT_PUBLIC_PLUGIN=/tmp/tokfit-connector/claude-code" >> "$GITHUB_ENV"
           grep '"version"' /tmp/tokfit-connector/claude-code/.claude-plugin/plugin.json
+      - name: Docker prêt
+        run: |
+          # Un runner a déjà démarré sans démon Docker (« Docker daemon is not running ») : on le lance et on attend.
+          for essai in 1 2 3 4 5 6; do
+            docker info >/dev/null 2>&1 && break
+            echo "Docker pas prêt (essai $essai)"; sudo systemctl start docker || true; sleep $((essai * 5))
+          done
+          docker info --format '{{.ServerVersion}}'
       - name: Banc
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
