@@ -1,0 +1,68 @@
+name: bench
+
+# Une tâche à la fois : on lance, on vérifie, puis la suivante.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Tâche de Terminal-Bench 4.0 (voir tasks.txt)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [vanilla, tokfit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Place sur le disque
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Harbor
+        run: pip install "harbor==0.26.0"
+      - name: Tâche
+        run: |
+          grep -qx "${{ inputs.task }}" tasks.txt || { echo "tâche hors du tirage"; exit 1; }
+          harbor dataset download terminal-bench/terminal-bench -o tasks
+      - name: Plugin tokfit publié
+        if: matrix.config == 'tokfit'
+        env:
+          TOKFIT_BENCH_KEY: ${{ secrets.TOKFIT_BENCH_KEY }}
+        run: |
+          git clone --depth 1 https://github.com/loisperrigon/tokfit-connector.git /tmp/tokfit-connector
+          mkdir -p ~/.config/tokfit-bench
+          python -c 'import json,os; print(json.dumps({"key": os.environ["TOKFIT_BENCH_KEY"]}))' > ~/.config/tokfit-bench/config.json
+          chmod 600 ~/.config/tokfit-bench/config.json
+          echo "TOKFIT_PUBLIC_PLUGIN=/tmp/tokfit-connector/claude-code" >> "$GITHUB_ENV"
+          grep '"version"' /tmp/tokfit-connector/claude-code/.claude-plugin/plugin.json
+      - name: Banc
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: python run_task.py "${{ inputs.task }}" "${{ matrix.config }}"
+      - name: Traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.task }}-${{ matrix.config }}
+          path: out/${{ matrix.config }}
+          retention-days: 90
+
+  report:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: results
+      - name: Tableau
+        run: python report.py results >> "$GITHUB_STEP_SUMMARY"
