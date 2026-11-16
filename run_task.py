@@ -69,7 +69,8 @@ def main() -> int:
     synthese["harbor_exit"] = code
     (sortie / "summary.json").write_text(json.dumps(synthese, indent=2, ensure_ascii=False))
     print(json.dumps(synthese, indent=2, ensure_ascii=False))
-    return 0
+    # Job rouge si la tâche n'a pas été jouée (connexion, conteneur...) ; un échec de l'agent reste vert.
+    return 0 if synthese.get("reward") is not None else 1
 
 
 if __name__ == "__main__":
