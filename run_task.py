@@ -29,6 +29,37 @@ def secondes(debut: str | None, fin: str | None) -> float | None:
     return (datetime.fromisoformat(fin) - datetime.fromisoformat(debut)).total_seconds()
 
 
+def trace(essai: Path) -> dict:
+    """Ce que l'agent a fait, tiré du flux stream-json de Claude Code (agent/claude-code.txt)."""
+    fichier = next(essai.rglob("claude-code.txt"), None)
+    if fichier is None:
+        return {}
+    outils: dict[str, int] = {}
+    modeles: dict[str, int] = {}
+    plugins: list = []
+    fin: dict = {}
+    for ligne in fichier.read_text(errors="replace").splitlines():
+        try:
+            ev = json.loads(ligne)
+        except ValueError:
+            continue
+        if ev.get("type") == "system" and ev.get("subtype") == "init":
+            plugins = ev.get("plugins") or []
+            outils_init = ev.get("tools") or []
+            fin["tools_offered"] = len(outils_init)
+            fin["tokfit_tool_offered"] = any("tokfit" in t for t in outils_init)
+        elif ev.get("type") == "assistant":
+            msg = ev.get("message") or {}
+            modeles[msg.get("model", "?")] = modeles.get(msg.get("model", "?"), 0) + 1
+            for bloc in msg.get("content") or []:
+                if bloc.get("type") == "tool_use":
+                    outils[bloc.get("name", "?")] = outils.get(bloc.get("name", "?"), 0) + 1
+        elif ev.get("type") == "result":
+            fin.update({"result_subtype": ev.get("subtype"), "num_turns": ev.get("num_turns"),
+                        "final_text": str(ev.get("result") or "")[:600]})
+    return {"plugins": plugins, "tools_used": outils, "models": modeles, **fin}
+
+
 def resume(tache: str, config: str, dossier: Path) -> dict:
     trouves = sorted(dossier.glob(f"{tache}/*/result.json"))
     if not trouves:
@@ -50,6 +81,7 @@ def resume(tache: str, config: str, dossier: Path) -> dict:
         "agent_seconds": secondes(execution.get("started_at"), execution.get("finished_at")),
         "total_seconds": secondes(r.get("started_at"), r.get("finished_at")),
         "error": (erreur or {}).get("exception_type"),
+        "trace": trace(trouves[-1].parent),
     }
 
 
