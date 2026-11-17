@@ -1,6 +1,7 @@
 """Une tâche de Terminal-Bench 4.0, une configuration : `vanilla` (Claude Code seul)
 ou `tokfit` (Claude Code + plugin tokfit publié). Même modèle et même réflexion
-des deux côtés (Opus 5.5, high), agent plafonné à 2 h (8 h officielles x 0.25).
+des deux côtés (Opus 5.5 ; réflexion `BENCH_EFFORT`, high par défaut, medium depuis le
+17/11/2026), agent plafonné à 2 h (8 h officielles x 0.25).
 
     python run_task.py <tache> <vanilla|tokfit>
 
@@ -18,7 +19,10 @@ from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
 MODELE = "anthropic/claude-opus-5-5"
-EFFORT = "high"
+EFFORTS = ("medium", "high")
+EFFORT = os.environ.get("BENCH_EFFORT") or "high"
+if EFFORT not in EFFORTS:
+    sys.exit(f"BENCH_EFFORT inconnu : {EFFORT} (attendu : {', '.join(EFFORTS)})")
 MULTIPLICATEUR = 0.25
 AGENTS = {"vanilla": ["-a", "claude-code"], "tokfit": ["-a", "tokfit_agent:TokfitClaudeCode"], "oracle": ["-a", "oracle"]}
 
@@ -73,7 +77,7 @@ def verificateur(essai: Path) -> str:
 def resume(tache: str, config: str, dossier: Path) -> dict:
     trouves = sorted(dossier.glob(f"{tache}/*/result.json"))
     if not trouves:
-        return {"task": tache, "config": config, "error": "aucun résultat"}
+        return {"task": tache, "config": config, "effort": EFFORT, "error": "aucun résultat"}
     r = json.loads(trouves[-1].read_text())
     agent = r.get("agent_result") or {}
     rewards = (r.get("verifier_result") or {}).get("rewards") or {}
@@ -82,6 +86,7 @@ def resume(tache: str, config: str, dossier: Path) -> dict:
     return {
         "task": tache,
         "config": config,
+        "effort": EFFORT,
         "reward": rewards.get("reward"),
         "cost_usd": agent.get("cost_usd"),
         "input_tokens": agent.get("n_input_tokens"),

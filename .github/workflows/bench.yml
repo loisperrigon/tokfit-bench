@@ -10,6 +10,9 @@ on:
       configs:
         description: "Configurations (JSON)"
         default: '["vanilla", "tokfit"]'
+      effort:
+        description: "Réflexion des deux côtés (medium ou high)"
+        default: "medium"
 
 permissions:
   contents: read
@@ -62,6 +65,7 @@ jobs:
       - name: Banc
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BENCH_EFFORT: ${{ inputs.effort }}
         run: python run_task.py "${{ inputs.task }}" "${{ matrix.config }}"
       - name: Traces
         if: always()
