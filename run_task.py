@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
@@ -101,6 +102,19 @@ def resume(tache: str, config: str, dossier: Path) -> dict:
     }
 
 
+def options_processeurs(dossier: Path) -> list[str]:
+    """`--cpus ignore` si la tâche (environnement ou correcteur) demande plus de processeurs que la machine.
+
+    Harbor fixe sinon la limite Docker à la valeur de la tâche, et Docker refuse plus que la machine
+    (payments-pipeline-fix : correcteur à 8 processeurs sur un runner qui en a 4, « range of CPUs is from
+    0.01 to 4.00 »). Sans limite, le conteneur prend la machine entière ; les autres tâches gardent leur limite.
+    """
+    toml = tomllib.loads((dossier / "task.toml").read_text())
+    demandes = [float((toml.get("environment") or {}).get("cpus") or 0),
+                float(((toml.get("verifier") or {}).get("environment") or {}).get("cpus") or 0)]
+    return ["--cpus", "ignore"] if max(demandes) > (os.cpu_count() or 1) else []
+
+
 def main() -> int:
     tache, config = sys.argv[1], sys.argv[2]
     sortie = ICI / "out" / config
@@ -108,7 +122,8 @@ def main() -> int:
     env = {**os.environ, "PYTHONPATH": str(ICI)}
     env.pop("ANTHROPIC_API_KEY", None)
     modele = [] if config == "oracle" else ["-m", MODELE, "--ak", f"reasoning_effort={EFFORT}"]
-    commande = ["harbor", "run", "-p", str(ICI / "tasks" / "terminal-bench" / tache), *AGENTS[config], *modele,
+    dossier = ICI / "tasks" / "terminal-bench" / tache
+    commande = ["harbor", "run", "-p", str(dossier), *AGENTS[config], *modele, *options_processeurs(dossier),
                 "--agent-timeout-multiplier", str(MULTIPLICATEUR), "-n", "1",
                 "-o", str(sortie / "jobs"), "--job-name", tache, "--yes",
                 "--ae", "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}"]
