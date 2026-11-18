@@ -34,6 +34,31 @@ def secondes(debut: str | None, fin: str | None) -> float | None:
     return (datetime.fromisoformat(fin) - datetime.fromisoformat(debut)).total_seconds()
 
 
+def envoye(essai: Path) -> dict[str, dict[str, int]]:
+    """Effort et modèle réellement envoyés, requête par requête (entrées `api-request` des journaux de session,
+    fil principal et sous-agents). L'effort demandé (BENCH_EFFORT) ne suffit pas : un service ou une limite de
+    compte peut le changer en route (17/11/2026 : clé du banc bridée en medium, côté tokfit envoyé en medium
+    pendant toute une campagne « high »)."""
+    efforts: dict[str, int] = {}
+    modeles: dict[str, int] = {}
+    vus: set = set()
+    for fichier in sorted(essai.rglob("sessions/projects/**/*.jsonl")):
+        for ligne in fichier.read_text(errors="replace").splitlines():
+            try:
+                ev = json.loads(ligne)
+            except ValueError:
+                continue
+            if not isinstance(ev, dict) or ev.get("type") != "api-request" or ev.get("id") in vus:
+                continue
+            vus.add(ev.get("id"))
+            p = ev.get("params") or {}
+            effort = str((p.get("output_config") or {}).get("effort") or "?")
+            modele = str(p.get("model") or "?")
+            efforts[effort] = efforts.get(effort, 0) + 1
+            modeles[modele] = modeles.get(modele, 0) + 1
+    return {"efforts_sent": efforts, "models_sent": modeles}
+
+
 def trace(essai: Path) -> dict:
     """Ce que l'agent a fait, tiré du flux stream-json de Claude Code (agent/claude-code.txt)."""
     fichier = next(essai.rglob("claude-code.txt"), None)
@@ -97,6 +122,7 @@ def resume(tache: str, config: str, dossier: Path) -> dict:
         "agent_seconds": secondes(execution.get("started_at"), execution.get("finished_at")),
         "total_seconds": secondes(r.get("started_at"), r.get("finished_at")),
         "error": (erreur or {}).get("exception_type"),
+        **envoye(trouves[-1].parent),
         "trace": trace(trouves[-1].parent),
         "verifier_tail": verificateur(trouves[-1].parent),
     }
