@@ -22,6 +22,7 @@ ICI = Path(__file__).resolve().parent
 MODELE = "anthropic/claude-opus-5-5"
 EFFORTS = ("medium", "high")
 EFFORT = os.environ.get("BENCH_EFFORT") or "high"
+CAMPAGNE = os.environ.get("BENCH_CAMPAIGN") or None  # banc.py : campagne notée dans chaque résultat
 if EFFORT not in EFFORTS:
     sys.exit(f"BENCH_EFFORT inconnu : {EFFORT} (attendu : {', '.join(EFFORTS)})")
 MULTIPLICATEUR = 0.25
@@ -103,7 +104,7 @@ def verificateur(essai: Path) -> str:
 def resume(tache: str, config: str, dossier: Path) -> dict:
     trouves = sorted(dossier.glob(f"{tache}/*/result.json"))
     if not trouves:
-        return {"task": tache, "config": config, "effort": EFFORT, "error": "aucun résultat"}
+        return {"task": tache, "config": config, "effort": EFFORT, "campaign": CAMPAGNE, "error": "aucun résultat"}
     r = json.loads(trouves[-1].read_text())
     agent = r.get("agent_result") or {}
     rewards = (r.get("verifier_result") or {}).get("rewards") or {}
@@ -113,6 +114,7 @@ def resume(tache: str, config: str, dossier: Path) -> dict:
         "task": tache,
         "config": config,
         "effort": EFFORT,
+        "campaign": CAMPAGNE,
         "reward": rewards.get("reward"),
         "cost_usd": agent.get("cost_usd"),
         "input_tokens": agent.get("n_input_tokens"),

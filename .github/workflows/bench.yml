@@ -13,6 +13,9 @@ on:
       effort:
         description: "Réflexion des deux côtés (medium ou high)"
         default: "medium"
+      campaign:
+        description: "Campagne (banc.py) : notée dans chaque résultat, un run sans campagne ne compte nulle part"
+        default: ""
 
 permissions:
   contents: read
@@ -66,6 +69,7 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           BENCH_EFFORT: ${{ inputs.effort }}
+          BENCH_CAMPAIGN: ${{ inputs.campaign }}
         run: python run_task.py "${{ inputs.task }}" "${{ matrix.config }}"
       - name: Traces
         if: always()
